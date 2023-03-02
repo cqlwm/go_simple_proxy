@@ -17,6 +17,12 @@ const accessKey = "Hf-Access-Key"
 const accessSecret = "UgFUrwVGktW9XbkozneV"
 
 func rewriteHttp(w http.ResponseWriter, r *http.Request) {
+	hh := w.Header()
+	hh.Add("Access-Control-Allow-Origin", "*")
+	hh.Add("Access-Control-Allow-Methods", "OPTIONS,GET,POST,HEAD,PUT,DELETE,PATCH")
+	hh.Add("Access-Control-Allow-Headers", "*")
+	hh.Add("Access-Control-Allow-Credentials", "true")
+	hh.Set("Content-Type", "text/plain; charset=utf-8")
 
 	method := r.Method
 	if method == "OPTIONS" {
@@ -56,13 +62,7 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 	res := *doRequest(method, domain+path, header, data)
 	fmt.Println(string(res.Body), res.Header)
 
-	hh := w.Header()
 	mapToHeader(&res.Header, &hh)
-	hh.Add("Access-Control-Allow-Origin", "*")
-	hh.Add("Access-Control-Allow-Methods", "OPTIONS,GET,POST,HEAD,PUT,DELETE,PATCH")
-	hh.Add("Access-Control-Allow-Headers", "*")
-	hh.Add("Access-Control-Allow-Credentials", "true")
-	hh.Set("Content-Type", "text/plain; charset=utf-8")
 
 	w.WriteHeader(200)
 	w.Write(res.Body)
