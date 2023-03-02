@@ -16,14 +16,11 @@ const reDomain = "Re-Domain"
 const accessKey = "Hf-Access-Key"
 const accessSecret = "UgFUrwVGktW9XbkozneV"
 
-func rewriteHttp(w http.ResponseWriter, r *http.Request) {
-	hh := w.Header()
-	hh.Add("Access-Control-Allow-Origin", "*")
-	hh.Add("Access-Control-Allow-Methods", "OPTIONS,GET,POST,HEAD,PUT,DELETE,PATCH")
-	hh.Add("Access-Control-Allow-Headers", "*")
-	hh.Add("Access-Control-Allow-Credentials", "true")
-	hh.Set("Content-Type", "text/plain; charset=utf-8")
+func responseReturn(w http.ResponseWriter) {
 
+}
+
+func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 	method := r.Method
 	if method == "OPTIONS" {
 		w.WriteHeader(200)
@@ -34,14 +31,22 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 	header := r.Header
 
 	if strings.TrimSpace(header.Get(accessKey)) != accessSecret {
-		panic("Prohibit unauthorized users from accessing the system")
+		w.WriteHeader(500)
+		r, _ := json.Marshal(map[string]string{"msg": "Prohibit unauthorized users from accessing the system"})
+		w.Write(r)
+		return
+		//panic("Prohibit unauthorized users from accessing the system")
 	} else {
 		header.Del(accessKey)
 	}
 
 	domain := strings.TrimSpace(header.Get(reDomain))
 	if domain == "" {
-		panic("domain is empty")
+		w.WriteHeader(500)
+		r, _ := json.Marshal(map[string]string{"msg": "domain is empty"})
+		w.Write(r)
+		return
+		//panic("domain is empty")
 	} else {
 		header.Del(reDomain)
 	}
@@ -60,18 +65,24 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 
 	header.Set(cycleCheckKey, "1")
 	res := *doRequest(method, domain+path, header, data)
+	if res.err != nil {
+		w.WriteHeader(500)
+		r, _ := json.Marshal(map[string]string{"msg": "request error" + res.err.Error()})
+		w.Write(r)
+		return
+	}
 	fmt.Println(string(res.Body), res.Header)
-
+	hh := w.Header()
 	mapToHeader(&res.Header, &hh)
 
 	w.WriteHeader(200)
 	w.Write(res.Body)
-
 }
 
 type SimpleResponse struct {
 	Body   []byte
 	Header map[string][]string
+	err    error
 }
 
 func doRequest(method string, url string, header http.Header, data []byte) *SimpleResponse {
@@ -85,22 +96,20 @@ func doRequest(method string, url string, header http.Header, data []byte) *Simp
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return &SimpleResponse{err: err}
 	}
 
 	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-
-		}
+		_ = Body.Close()
 	}(resp.Body)
 
 	responseHeader := resp.Header
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 
 	return &SimpleResponse{
 		Body:   body,
 		Header: responseHeader,
+		err:    err,
 	}
 }
 
@@ -124,9 +133,24 @@ func mapToHeader(hmap *map[string][]string, header *http.Header) {
 }
 
 func main() {
-	http.HandleFunc("/", rewriteHttp)
+	http.HandleFunc("/", cors(rewriteHttp))
 	err := http.ListenAndServe(":80", nil)
 	if err != nil {
 		panic(err)
+	}
+}
+
+func cors(f http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+		w.Header().Add("Access-Control-Allow-Headers", "Content-Type,AccessToken,X-CSRF-Token,Authorization,Token,Hf-Access-Key,Re-Domain") //header的类型
+		w.Header().Add("Access-Control-Allow-Credentials", "true")                                                                          //设置为true，允许ajax异步请求带cookie信息
+		w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, HEAD, PATCH")
+		w.Header().Set("content-type", "application/json;charset=UTF-8")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		f(w, r)
 	}
 }
