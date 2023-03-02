@@ -123,10 +123,7 @@ func mapToHeader(hmap *map[string][]string, header *http.Header) {
 
 func main() {
 	http.HandleFunc("/", cors(rewriteHttp))
-	err := http.ListenAndServe(":80", nil)
-	if err != nil {
-		panic(err)
-	}
+	_ = http.ListenAndServe(":80", nil)
 }
 
 func cors(f http.HandlerFunc) http.HandlerFunc {
