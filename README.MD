@@ -1,5 +1,8 @@
 # quick start
 
+## info
+
+This tool forwards HTTP requests from one source to another while retaining all request and response information and data. It is commonly used for debugging and testing HTTP services, as well as forwarding HTTP requests between different environments.
 
 ## build 
 
