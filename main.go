@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -63,24 +62,25 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 
 	// write response
 	hh := w.Header()
-	mapToHeader(&res.Header, &hh)
-	w.WriteHeader(200)
+	addAllToHeader(&res.Header, &hh)
+	w.WriteHeader(res.State)
 	w.Write(res.Body)
 }
 
 type SimpleResponse struct {
+	State  int
 	Body   []byte
 	Header map[string][]string
 	err    error
 }
 
-func doRequest(method string, url string, header http.Header, data []byte) *SimpleResponse {
+func doRequest(method string, url string, header map[string][]string, data []byte) *SimpleResponse {
 	req, err := http.NewRequest(method, url, bytes.NewBuffer(data))
 	if err != nil {
 		return &SimpleResponse{err: err}
 	}
 
-	mapToHeader(headerToMap(header), &req.Header)
+	addAllToHeader(&header, &req.Header)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -88,32 +88,22 @@ func doRequest(method string, url string, header http.Header, data []byte) *Simp
 		return &SimpleResponse{err: err}
 	}
 
+	responseHeader := resp.Header
+	body, err := ioutil.ReadAll(resp.Body)
+
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
 
-	responseHeader := resp.Header
-	body, err := ioutil.ReadAll(resp.Body)
-
 	return &SimpleResponse{
+		State:  resp.StatusCode,
 		Body:   body,
 		Header: responseHeader,
 		err:    err,
 	}
 }
 
-func headerToMap(header http.Header) *map[string][]string {
-	bs, _ := json.Marshal(header)
-	var data map[string][]string
-	err := json.Unmarshal(bs, &data)
-	if err != nil {
-		fmt.Println("Error:", err)
-		panic("error Unmarshal failed")
-	}
-	return &data
-}
-
-func mapToHeader(hmap *map[string][]string, header *http.Header) {
+func addAllToHeader(hmap *map[string][]string, header *http.Header) {
 	for k, vs := range *hmap {
 		for _, v := range vs {
 			header.Add(k, v)
