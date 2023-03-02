@@ -16,65 +16,54 @@ const reDomain = "Re-Domain"
 const accessKey = "Hf-Access-Key"
 const accessSecret = "UgFUrwVGktW9XbkozneV"
 
-func responseReturn(w http.ResponseWriter) {
+func returnResponse(w http.ResponseWriter, status int, msg string) {
+	w.WriteHeader(status)
+	r, _ := json.Marshal(map[string]string{"msg": msg})
+	w.Write(r)
+}
 
+func delGet(h http.Header, key string) string {
+	v := strings.TrimSpace(h.Get(key))
+	h.Del(key)
+	return v
 }
 
 func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 	method := r.Method
-	if method == "OPTIONS" {
-		w.WriteHeader(200)
-		return
-	}
-
 	path := r.RequestURI
+
 	header := r.Header
 
-	if strings.TrimSpace(header.Get(accessKey)) != accessSecret {
-		w.WriteHeader(500)
-		r, _ := json.Marshal(map[string]string{"msg": "Prohibit unauthorized users from accessing the system"})
-		w.Write(r)
+	// check header
+	if delGet(header, accessKey) != accessSecret {
+		returnResponse(w, 500, "Prohibit unauthorized users from accessing the system")
 		return
-		//panic("Prohibit unauthorized users from accessing the system")
-	} else {
-		header.Del(accessKey)
 	}
 
-	domain := strings.TrimSpace(header.Get(reDomain))
+	domain := delGet(header, reDomain)
 	if domain == "" {
-		w.WriteHeader(500)
-		r, _ := json.Marshal(map[string]string{"msg": "domain is empty"})
-		w.Write(r)
+		returnResponse(w, 500, "Re-Domain is empty")
 		return
-		//panic("domain is empty")
+	}
+
+	if delGet(header, cycleCheckKey) != "" {
+		returnResponse(w, 500, "The request is stuck in a loop; Verify the [Re-Domain] field in the request header.")
+		return
 	} else {
-		header.Del(reDomain)
+		header.Set(cycleCheckKey, "1")
 	}
 
-	fallCycle := strings.TrimSpace(header.Get(cycleCheckKey))
-	if fallCycle != "" {
-		hh := w.Header()
-		hh.Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(500)
-		errMsg := "The request is stuck in a loop; Verify the [Re-Domain] field in the request header."
-		w.Write([]byte(errMsg))
-		return
-	}
-
+	// request
 	data, _ := ioutil.ReadAll(r.Body)
-
-	header.Set(cycleCheckKey, "1")
 	res := *doRequest(method, domain+path, header, data)
 	if res.err != nil {
-		w.WriteHeader(500)
-		r, _ := json.Marshal(map[string]string{"msg": "request error" + res.err.Error()})
-		w.Write(r)
+		returnResponse(w, 500, res.err.Error())
 		return
 	}
-	fmt.Println(string(res.Body), res.Header)
+
+	// write response
 	hh := w.Header()
 	mapToHeader(&res.Header, &hh)
-
 	w.WriteHeader(200)
 	w.Write(res.Body)
 }
@@ -88,7 +77,7 @@ type SimpleResponse struct {
 func doRequest(method string, url string, header http.Header, data []byte) *SimpleResponse {
 	req, err := http.NewRequest(method, url, bytes.NewBuffer(data))
 	if err != nil {
-		panic(err)
+		return &SimpleResponse{err: err}
 	}
 
 	mapToHeader(headerToMap(header), &req.Header)
@@ -142,7 +131,12 @@ func main() {
 
 func cors(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+		rOrigin := r.Header.Get("Origin")
+		if rOrigin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
 		w.Header().Add("Access-Control-Allow-Headers", "Content-Type,AccessToken,X-CSRF-Token,Authorization,Token,Hf-Access-Key,Re-Domain") //header的类型
 		w.Header().Add("Access-Control-Allow-Credentials", "true")                                                                          //设置为true，允许ajax异步请求带cookie信息
 		w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, HEAD, PATCH")
