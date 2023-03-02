@@ -17,7 +17,13 @@ const accessKey = "Hf-Access-Key"
 const accessSecret = "UgFUrwVGktW9XbkozneV"
 
 func rewriteHttp(w http.ResponseWriter, r *http.Request) {
+
 	method := r.Method
+	if method == "OPTIONS" {
+		w.WriteHeader(200)
+		return
+	}
+
 	path := r.RequestURI
 	header := r.Header
 
@@ -30,6 +36,8 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 	domain := strings.TrimSpace(header.Get(reDomain))
 	if domain == "" {
 		panic("domain is empty")
+	} else {
+		header.Del(reDomain)
 	}
 
 	fallCycle := strings.TrimSpace(header.Get(cycleCheckKey))
@@ -50,6 +58,10 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 
 	hh := w.Header()
 	mapToHeader(&res.Header, &hh)
+	hh.Add("Access-Control-Allow-Origin", "*")
+	hh.Add("Access-Control-Allow-Methods", "OPTIONS,GET,POST,HEAD,PUT,DELETE,PATCH")
+	hh.Add("Access-Control-Allow-Headers", "*")
+	hh.Add("Access-Control-Allow-Credentials", "true")
 	hh.Set("Content-Type", "text/plain; charset=utf-8")
 
 	w.WriteHeader(200)
