@@ -6,14 +6,17 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 )
 
-const cycleCheckKey = "Hf-Cycle-Check"
-const reDomain = "Re-Domain"
+const (
+	cycleCheckKey string = "Hf-Cycle-Check"
+	reDomain      string = "Re-Domain"
+	accessKey     string = "Hf-Access-Key"
+)
 
-const accessKey = "Hf-Access-Key"
-const accessSecret = "UgFUrwVGktW9XbkozneV"
+var accessSecret = os.Getenv("HF_ACCESS_SECRET")
 
 func returnResponse(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
@@ -128,10 +131,12 @@ func cors(f http.HandlerFunc) http.HandlerFunc {
 		w.Header().Add("Access-Control-Allow-Credentials", "true")                                                                          //设置为true，允许ajax异步请求带cookie信息
 		w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, HEAD, PATCH")
 		w.Header().Set("content-type", "application/json;charset=UTF-8")
+
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+
 		f(w, r)
 	}
 }
