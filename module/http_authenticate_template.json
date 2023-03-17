@@ -1,0 +1,36 @@
+{
+  "name": "",
+  "module": "HttpAuthenticator",
+  "parameter": {
+    "url": "",
+    "httpMethod": "",
+    "params": [
+      {
+        "value": "",
+        "paramType": "BODY_FULL"
+      },
+      {
+        "prop": "TOKEN",
+        "value": "",
+        "paramType": "HEADERS"
+      },
+      {
+        "prop": "state",
+        "value": "",
+        "paramType": "QUERY"
+      }
+    ],
+    "varsAssign": [
+      "CREDENTIALS:HEADERS.TOKEN"
+    ],
+    "checkCondition": [
+      "RESPONSE.STATES==200"
+    ],
+    "connection": "200",
+    "connectTimeout": -1,
+    "socketTimeout": -1,
+    "internalVars": [
+      "CREDENTIALS"
+    ]
+  }
+}

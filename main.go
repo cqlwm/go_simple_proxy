@@ -1,9 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
+	"http_forwarder_go/util"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -57,61 +56,21 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 
 	// request
 	data, _ := ioutil.ReadAll(r.Body)
-	res := *doRequest(method, domain+path, header, data)
-	if res.err != nil {
-		returnResponse(w, 500, res.err.Error())
+	res := *util.DoRequest(method, domain+path, header, data)
+	if res.Err != nil {
+		returnResponse(w, 500, res.Err.Error())
 		return
 	}
 
 	// write response
-	hh := w.Header()
-	addAllToHeader(&res.Header, &hh)
+	mergeHandler := util.HttpHeadMergeHandler{
+		Target: w.Header(),
+		Heads:  []http.Header{res.Header},
+	}
+	mergeHandler.Invoke()
+
 	w.WriteHeader(res.State)
 	w.Write(res.Body)
-}
-
-type SimpleResponse struct {
-	State  int
-	Body   []byte
-	Header map[string][]string
-	err    error
-}
-
-func doRequest(method string, url string, header map[string][]string, data []byte) *SimpleResponse {
-	req, err := http.NewRequest(method, url, bytes.NewBuffer(data))
-	if err != nil {
-		return &SimpleResponse{err: err}
-	}
-
-	addAllToHeader(&header, &req.Header)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return &SimpleResponse{err: err}
-	}
-
-	responseHeader := resp.Header
-	body, err := ioutil.ReadAll(resp.Body)
-
-	defer func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
-
-	return &SimpleResponse{
-		State:  resp.StatusCode,
-		Body:   body,
-		Header: responseHeader,
-		err:    err,
-	}
-}
-
-func addAllToHeader(hmap *map[string][]string, header *http.Header) {
-	for k, vs := range *hmap {
-		for _, v := range vs {
-			header.Add(k, v)
-		}
-	}
 }
 
 func main() {
