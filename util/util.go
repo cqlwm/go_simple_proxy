@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-type SimpleResponse struct {
+type SimpleHttpResponse struct {
 	State  int
 	Body   []byte
 	Header map[string][]string
@@ -33,10 +33,10 @@ func (h *HttpHeadMergeHandler) Invoke() {
 	}
 }
 
-func DoRequest(method string, url string, header http.Header, data []byte) *SimpleResponse {
+func DoRequest(method string, url string, header http.Header, data []byte) *SimpleHttpResponse {
 	req, err := http.NewRequest(method, url, bytes.NewBuffer(data))
 	if err != nil {
-		return &SimpleResponse{Err: err}
+		return &SimpleHttpResponse{Err: err}
 	}
 
 	merge := HttpHeadMergeHandler{
@@ -48,7 +48,7 @@ func DoRequest(method string, url string, header http.Header, data []byte) *Simp
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return &SimpleResponse{Err: err}
+		return &SimpleHttpResponse{Err: err}
 	}
 
 	responseHeader := resp.Header
@@ -58,7 +58,7 @@ func DoRequest(method string, url string, header http.Header, data []byte) *Simp
 		_ = Body.Close()
 	}(resp.Body)
 
-	return &SimpleResponse{
+	return &SimpleHttpResponse{
 		State:  resp.StatusCode,
 		Body:   body,
 		Header: responseHeader,

@@ -4,33 +4,39 @@
   "parameter": {
     "url": "",
     "httpMethod": "",
-    "params": [
-      {
-        "value": "",
-        "paramType": "BODY_FULL"
-      },
-      {
-        "prop": "TOKEN",
-        "value": "",
-        "paramType": "HEADERS"
-      },
-      {
-        "prop": "state",
-        "value": "",
-        "paramType": "QUERY"
-      }
-    ],
+    "header": {
+      "token": [""]
+    },
+    "query": {
+      "key": "value"
+    },
+    "body": {
+    },
     "varsAssign": [
-      "CREDENTIALS:HEADERS.TOKEN"
+      "credentials:header.token"
     ],
     "checkCondition": [
-      "RESPONSE.STATES==200"
+      "response.status-code==200"
     ],
-    "connection": "200",
     "connectTimeout": -1,
-    "socketTimeout": -1,
-    "internalVars": [
-      "CREDENTIALS"
-    ]
+    "help": {
+      "credentials": {
+        "description": "Credential sent to the authentication server for identity verification."
+      },
+      "credentials:header.token": {
+        "description": "Assign the token from the header to the credentials."
+      },
+      "response": {
+        "description": "Response from the authentication server.",
+        "fields": [
+          "status-code",
+          "body",
+          "header"
+        ]
+      },
+      "response.status-code": {
+        "description": "Response status-code."
+      }
+    }
   }
 }

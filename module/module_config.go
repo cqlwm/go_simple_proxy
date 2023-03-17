@@ -6,9 +6,3 @@ type BaseModule interface {
 }
 
 var AllModule = map[string]BaseModule{}
-
-func t() {
-	ha := AllModule["HttpAuthenticator"]
-	m  := map[string]interface {}{}
-	ha.Init(m)
-}
