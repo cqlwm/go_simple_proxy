@@ -81,7 +81,7 @@ func cors(f HandlerFunc0) http.HandlerFunc {
 		rOrigin := r.Header.Get("Origin")
 		if rOrigin != "" {
 			// Prevents the front end from submitting Origin.Header repeatedly
-			origins := strings.Split(r.Header.Get("Origin"), ",")
+			origins := strings.Split(rOrigin, ",")
 			origin := strings.TrimSpace(origins[len(origins)-1])
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		} else {
