@@ -29,7 +29,7 @@ func delGet(h http.Header, key string) string {
 	return v
 }
 
-func rewriteHttp(w http.ResponseWriter, r *http.Request) {
+func rewriteHttp(w http.ResponseWriter, r *http.Request) *util.SimpleHttpResponse {
 	method := r.Method
 	path := r.RequestURI
 
@@ -38,18 +38,18 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 	// check header
 	if delGet(header, accessKey) != accessSecret {
 		returnResponse(w, 500, "Prohibit unauthorized users from accessing the system")
-		return
+		return nil
 	}
 
 	domain := delGet(header, reDomain)
 	if domain == "" {
 		returnResponse(w, 500, "Re-Domain is empty")
-		return
+		return nil
 	}
 
 	if delGet(header, cycleCheckKey) != "" {
 		returnResponse(w, 500, "The request is stuck in a loop; Verify the [Re-Domain] field in the request header.")
-		return
+		return nil
 	} else {
 		header.Set(cycleCheckKey, "1")
 	}
@@ -59,26 +59,20 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) {
 	res := *util.DoRequest(method, domain+path, header, data)
 	if res.Err != nil {
 		returnResponse(w, 500, res.Err.Error())
-		return
+		return nil
 	}
 
-	// write response
-	mergeHandler := util.HttpHeadMergeHandler{
-		Target: w.Header(),
-		Heads:  []http.Header{res.Header},
-	}
-	mergeHandler.Invoke()
-
-	w.WriteHeader(res.State)
-	w.Write(res.Body)
+	return &res
 }
+
+type HandlerFunc0 func(http.ResponseWriter, *http.Request) *util.SimpleHttpResponse
 
 func main() {
 	http.HandleFunc("/", cors(rewriteHttp))
 	_ = http.ListenAndServe(":80", nil)
 }
 
-func cors(f http.HandlerFunc) http.HandlerFunc {
+func cors(f HandlerFunc0) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		rOrigin := r.Header.Get("Origin")
 		if rOrigin != "" {
@@ -96,6 +90,18 @@ func cors(f http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		f(w, r)
+		res := f(w, r)
+		delete(res.Header, "Access-Control-Allow-Origin")
+
+		// write response
+		mergeHandler := util.HttpHeadMergeHandler{
+			Target: w.Header(),
+			Heads:  []http.Header{res.Header},
+		}
+		mergeHandler.Invoke()
+
+		w.WriteHeader(res.State)
+		w.Write(res.Body)
+		return
 	}
 }
