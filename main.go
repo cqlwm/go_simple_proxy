@@ -1,83 +1,31 @@
 package main
 
 import (
-	"encoding/json"
 	"http_forwarder_go/util"
-	"io"
 	"net/http"
 	"os"
 	"strings"
 )
 
 const (
-	cycleCheckKey string = "Hf-Cycle-Check"
-	reDomain      string = "Re-Domain"
-	accessKey     string = "Hf-Access-Key"
+	cycleCheckKey   string = "Hf-Cycle-Check"
+	reDomain        string = "Re-Domain"
+	accessKey       string = "Hf-Access-Key"
+	filterHeaderKey string = "Filter-Headers"
+	keepHeaderKey   string = "Keep-Headers"
 )
 
 var accessSecret = os.Getenv("HF_ACCESS_SECRET")
 
-func returnResponse(w http.ResponseWriter, status int, msg string) {
-	w.WriteHeader(status)
-	r, _ := json.Marshal(map[string]string{"msg": msg})
-	w.Write(r)
-}
-
-func delGet(h http.Header, key string) string {
-	v := strings.TrimSpace(h.Get(key))
-	h.Del(key)
-	return v
-}
-
-func failed(msg string) *util.SimpleHttpResponse {
-	b, _ := json.Marshal(map[string]string{"msg": msg})
-	return &util.SimpleHttpResponse{
-		State: 500,
-		Body:  b,
-	}
-}
-
-func rewriteHttp(r *http.Request) *util.SimpleHttpResponse {
-	method := r.Method
-	path := r.RequestURI
-
-	header := r.Header
-
-	// check header
-	if delGet(header, accessKey) != accessSecret {
-		return failed("Prohibit unauthorized users from accessing the system")
-	}
-
-	domain := delGet(header, reDomain)
-	if domain == "" {
-		return failed("Re-Domain is empty")
-	}
-
-	if delGet(header, cycleCheckKey) != "" {
-		return failed("The request is stuck in a loop; Verify the [Re-Domain] field in the request header.")
-	} else {
-		header.Set(cycleCheckKey, "1")
-	}
-
-	// request
-	data, _ := io.ReadAll(r.Body)
-	res := *util.DoRequest(method, domain+path, header, data)
-	if res.Err != nil {
-		return failed(res.Err.Error())
-	}
-
-	return &res
-}
-
-type HandlerFunc0 func(*http.Request) *util.SimpleHttpResponse
-
 func main() {
-	http.HandleFunc("/", cors(rewriteHttp))
+	httpHandlerWrapper("/", util.ShiftRequest)
 	_ = http.ListenAndServe(":80", nil)
 }
 
-func cors(f HandlerFunc0) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+type ShiftFunc0 func(*http.Request, string) *util.SimpleHttpResponse
+
+func httpHandlerWrapper(pattern string, f ShiftFunc0) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
 		rOrigin := r.Header.Get("Origin")
 		if rOrigin != "" {
 			// Prevents the front end from submitting Origin.Header repeatedly
@@ -97,7 +45,42 @@ func cors(f HandlerFunc0) http.HandlerFunc {
 			return
 		}
 
-		simpleResponse := f(r)
+		// check header
+		var errmsg string
+		if util.MapDelGet(r.Header, accessKey) != accessSecret {
+			errmsg = "Prohibit unauthorized users from accessing the system"
+		}
+
+		domain := util.MapDelGet(r.Header, reDomain)
+		if domain == "" {
+			errmsg = "Re-Domain is empty"
+		}
+
+		if util.MapDelGet(r.Header, cycleCheckKey) != "" {
+			errmsg = "The request is stuck in a loop; Verify the [Re-Domain] field in the request header."
+		} else {
+			r.Header.Set(cycleCheckKey, "1")
+		}
+
+		if errmsg != "" {
+			w.Header().Set("content-type", "text/plain;charset=UTF-8")
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(errmsg))
+			return
+		}
+
+		// keep header
+		keeps := util.MapValues(r.Header, keepHeaderKey)
+		if keeps != nil {
+			util.FilterMapKeys(r.Header, keeps, true)
+		} else {
+			filters := util.MapValues(r.Header, filterHeaderKey)
+			if filters != nil {
+				util.FilterMapKeys(r.Header, filters, false)
+			}
+		}
+
+		simpleResponse := f(r, domain)
 		delete(simpleResponse.Header, "Access-Control-Allow-Origin")
 
 		mergeHandler := util.HttpHeadMergeHandler{
@@ -105,9 +88,10 @@ func cors(f HandlerFunc0) http.HandlerFunc {
 			Heads:  []http.Header{simpleResponse.Header},
 		}
 		mergeHandler.Invoke()
-
 		w.WriteHeader(simpleResponse.State)
 		_, _ = w.Write(simpleResponse.Body)
 		return
 	}
+
+	http.HandleFunc(pattern, handler)
 }

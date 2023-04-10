@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -33,7 +34,30 @@ func (h *HttpHeadMergeHandler) Invoke() {
 	}
 }
 
-func DoRequest(method string, url string, header http.Header, data []byte) *SimpleHttpResponse {
+func failed(msg string) *SimpleHttpResponse {
+	b, _ := json.Marshal(map[string]string{"msg": msg})
+	return &SimpleHttpResponse{
+		State: 500,
+		Body:  b,
+	}
+}
+
+func ShiftRequest(r *http.Request, reDomain string) *SimpleHttpResponse {
+	method := r.Method
+	path := r.RequestURI
+	header := r.Header
+
+	// request
+	data, _ := io.ReadAll(r.Body)
+	res := *doRequest(method, reDomain+path, header, data)
+	if res.Err != nil {
+		return failed(res.Err.Error())
+	}
+
+	return &res
+}
+
+func doRequest(method string, url string, header http.Header, data []byte) *SimpleHttpResponse {
 	req, err := http.NewRequest(method, url, bytes.NewBuffer(data))
 	if err != nil {
 		return &SimpleHttpResponse{Err: err}
