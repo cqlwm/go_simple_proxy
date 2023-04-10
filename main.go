@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"http_forwarder_go/util"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -29,7 +29,15 @@ func delGet(h http.Header, key string) string {
 	return v
 }
 
-func rewriteHttp(w http.ResponseWriter, r *http.Request) *util.SimpleHttpResponse {
+func failed(msg string) *util.SimpleHttpResponse {
+	b, _ := json.Marshal(map[string]string{"msg": msg})
+	return &util.SimpleHttpResponse{
+		State: 500,
+		Body:  b,
+	}
+}
+
+func rewriteHttp(r *http.Request) *util.SimpleHttpResponse {
 	method := r.Method
 	path := r.RequestURI
 
@@ -37,35 +45,31 @@ func rewriteHttp(w http.ResponseWriter, r *http.Request) *util.SimpleHttpRespons
 
 	// check header
 	if delGet(header, accessKey) != accessSecret {
-		returnResponse(w, 500, "Prohibit unauthorized users from accessing the system")
-		return nil
+		return failed("Prohibit unauthorized users from accessing the system")
 	}
 
 	domain := delGet(header, reDomain)
 	if domain == "" {
-		returnResponse(w, 500, "Re-Domain is empty")
-		return nil
+		return failed("Re-Domain is empty")
 	}
 
 	if delGet(header, cycleCheckKey) != "" {
-		returnResponse(w, 500, "The request is stuck in a loop; Verify the [Re-Domain] field in the request header.")
-		return nil
+		return failed("The request is stuck in a loop; Verify the [Re-Domain] field in the request header.")
 	} else {
 		header.Set(cycleCheckKey, "1")
 	}
 
 	// request
-	data, _ := ioutil.ReadAll(r.Body)
+	data, _ := io.ReadAll(r.Body)
 	res := *util.DoRequest(method, domain+path, header, data)
 	if res.Err != nil {
-		returnResponse(w, 500, res.Err.Error())
-		return nil
+		return failed(res.Err.Error())
 	}
 
 	return &res
 }
 
-type HandlerFunc0 func(http.ResponseWriter, *http.Request) *util.SimpleHttpResponse
+type HandlerFunc0 func(*http.Request) *util.SimpleHttpResponse
 
 func main() {
 	http.HandleFunc("/", cors(rewriteHttp))
@@ -76,7 +80,10 @@ func cors(f HandlerFunc0) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		rOrigin := r.Header.Get("Origin")
 		if rOrigin != "" {
-			w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+			// Prevents the front end from submitting Origin.Header repeatedly
+			origins := strings.Split(r.Header.Get("Origin"), ",")
+			origin := strings.TrimSpace(origins[len(origins)-1])
+			w.Header().Set("Access-Control-Allow-Origin", origin)
 		} else {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
@@ -90,18 +97,17 @@ func cors(f HandlerFunc0) http.HandlerFunc {
 			return
 		}
 
-		res := f(w, r)
-		delete(res.Header, "Access-Control-Allow-Origin")
+		simpleResponse := f(r)
+		delete(simpleResponse.Header, "Access-Control-Allow-Origin")
 
-		// write response
 		mergeHandler := util.HttpHeadMergeHandler{
 			Target: w.Header(),
-			Heads:  []http.Header{res.Header},
+			Heads:  []http.Header{simpleResponse.Header},
 		}
 		mergeHandler.Invoke()
 
-		w.WriteHeader(res.State)
-		w.Write(res.Body)
+		w.WriteHeader(simpleResponse.State)
+		_, _ = w.Write(simpleResponse.Body)
 		return
 	}
 }

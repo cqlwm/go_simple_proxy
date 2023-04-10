@@ -1,4 +1,6 @@
-# quick start
+# HTTP Shift
+
+## quick start
 
 ## info
 
@@ -23,4 +25,15 @@ curl 'http://localhost/api/test?id=123' \
   -H 'Hf-Access-Key: xxxx' \
   -H 'Re-Domain: https://www.hahaha.com' \
   --compressed
+```
+
+## request header
+
+```properties
+Hf-Access-Key=xxxx
+Re-Domain=https://www.hahaha.com,https://dev.hahaha.com,https://www.hahaha2.com
+Forward-Strategy=random || sequence || all
+# Headers that do not need to be forwarded.
+Filter-Headers=Hf-Access-Key,Re-Domain
+Keep-Headers=Hf-Access-Key,Re-Domain
 ```
