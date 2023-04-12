@@ -24,24 +24,34 @@ func main() {
 
 type ShiftFunc0 func(*http.Request, string) *util.SimpleHttpResponse
 
+func setHeader(w http.ResponseWriter) {
+	headers := map[string]string{
+		"Access-Control-Allow-Origin":      "*",
+		"Access-Control-Allow-Headers":     "Content-Type,AccessToken,X-CSRF-Token,Authorization,Token,Hf-Access-Key,Re-Domain",
+		"Access-Control-Allow-Credentials": "true",
+		"Access-Control-Allow-Methods":     "POST, GET, OPTIONS, PUT, DELETE, HEAD, PATCH",
+		"content-type":                     "application/json;charset=UTF-8",
+	}
+	for k, v := range headers {
+		w.Header().Set(k, v)
+	}
+}
+
 func httpHandlerWrapper(pattern string, f ShiftFunc0) {
+
 	handler := func(w http.ResponseWriter, r *http.Request) {
+		setHeader(w)
+
 		rOrigin := r.Header.Get("Origin")
 		if rOrigin != "" {
 			// Prevents the front end from submitting Origin.Header repeatedly
 			origins := strings.Split(rOrigin, ",")
 			origin := strings.TrimSpace(origins[len(origins)-1])
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-		} else {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
-		w.Header().Add("Access-Control-Allow-Headers", "Content-Type,AccessToken,X-CSRF-Token,Authorization,Token,Hf-Access-Key,Re-Domain") //header的类型
-		w.Header().Add("Access-Control-Allow-Credentials", "true")                                                                          //设置为true，允许ajax异步请求带cookie信息
-		w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, HEAD, PATCH")
-		w.Header().Set("content-type", "application/json;charset=UTF-8")
 
 		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusNoContent)
+			w.WriteHeader(http.StatusAccepted)
 			return
 		}
 
@@ -82,6 +92,7 @@ func httpHandlerWrapper(pattern string, f ShiftFunc0) {
 
 		simpleResponse := f(r, domain)
 		delete(simpleResponse.Header, "Access-Control-Allow-Origin")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 
 		mergeHandler := util.HttpHeadMergeHandler{
 			Target: w.Header(),

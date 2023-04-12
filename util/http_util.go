@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 type SimpleHttpResponse struct {
@@ -69,7 +70,9 @@ func doRequest(method string, url string, header http.Header, data []byte) *Simp
 	}
 	merge.Invoke()
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 3 * time.Minute,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return &SimpleHttpResponse{Err: err}
